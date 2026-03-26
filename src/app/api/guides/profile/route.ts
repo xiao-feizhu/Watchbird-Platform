@@ -18,6 +18,33 @@ const PROTECTED_FIELDS = [
   'updatedAt',
 ]
 
+// Shared include block for guide profile queries
+const PROFILE_INCLUDE = {
+  user: {
+    select: {
+      id: true,
+      phone: true,
+      nickname: true,
+      avatar: true,
+      role: true,
+    },
+  },
+  services: {
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      region: true,
+      duration: true,
+      maxPeople: true,
+      price: true,
+      status: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: 'desc' as const },
+  },
+}
+
 /**
  * Verify JWT token and return payload
  */
@@ -50,31 +77,7 @@ export async function GET(request: NextRequest) {
 
     const guideProfile = await prisma.guideProfile.findUnique({
       where: { userId: payload.userId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            phone: true,
-            nickname: true,
-            avatar: true,
-            role: true,
-          },
-        },
-        services: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            region: true,
-            duration: true,
-            maxPeople: true,
-            price: true,
-            status: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
+      include: PROFILE_INCLUDE,
     })
 
     if (!guideProfile) {
@@ -161,31 +164,7 @@ export async function PATCH(request: NextRequest) {
     const updatedProfile = await prisma.guideProfile.update({
       where: { userId: payload.userId },
       data: updateData,
-      include: {
-        user: {
-          select: {
-            id: true,
-            phone: true,
-            nickname: true,
-            avatar: true,
-            role: true,
-          },
-        },
-        services: {
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            region: true,
-            duration: true,
-            maxPeople: true,
-            price: true,
-            status: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
+      include: PROFILE_INCLUDE,
     })
 
     return NextResponse.json(

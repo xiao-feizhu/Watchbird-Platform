@@ -5,7 +5,6 @@ import Link from 'next/link'
 
 interface GuideProfile {
   id: string
-  type: string
   level: string
   status: string
   realName: string

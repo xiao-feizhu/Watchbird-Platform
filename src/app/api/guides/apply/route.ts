@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { verifyToken } from '@/lib/auth'
+import { verifyToken, isValidPhone } from '@/lib/auth'
 import { createSuccessResponse, createErrorResponse } from '@/lib/api-response'
 import { UserRole, GuideStatus } from '@prisma/client'
+
+const DEFAULT_COMMISSION_RATE = 0.15
+const DEFAULT_LEVEL = 'BASIC'
+const DEFAULT_LANGUAGE = '中文'
+const MAX_BIO_LENGTH = 2000
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,6 +57,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (!isValidPhone(contactPhone)) {
+      return NextResponse.json(
+        createErrorResponse('INVALID_PHONE_FORMAT', '联系电话格式不正确'),
+        { status: 400 }
+      )
+    }
+
+    if (bio && (typeof bio !== 'string' || bio.length > MAX_BIO_LENGTH)) {
+      return NextResponse.json(
+        createErrorResponse('INVALID_BIO', `个人简介不能超过${MAX_BIO_LENGTH}字符`),
+        { status: 400 }
+      )
+    }
+
     if (!regions || !Array.isArray(regions) || regions.length === 0) {
       return NextResponse.json(
         createErrorResponse('INVALID_REGIONS', '请至少选择一个服务地区'),
@@ -79,12 +98,12 @@ export async function POST(request: NextRequest) {
         idCard: idCard || null,
         bio: bio || null,
         regions,
-        languages: languages || ['中文'],
+        languages: languages || [DEFAULT_LANGUAGE],
         contactPhone,
         contactWechat: contactWechat || null,
         status: GuideStatus.PENDING,
-        level: 'BASIC',
-        commissionRate: 0.15,
+        level: DEFAULT_LEVEL,
+        commissionRate: DEFAULT_COMMISSION_RATE,
       },
     })
 
