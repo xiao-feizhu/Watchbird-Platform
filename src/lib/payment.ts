@@ -72,7 +72,7 @@ export function generatePaymentParams(
     timeStamp,
     nonceStr,
     package: packageValue,
-    signType: 'RSA',
+    signType: 'HMAC-SHA256',
   }
 
   // For RSA signing, we would need a private key

@@ -170,6 +170,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validate priceType
+    if (!['per_person', 'per_group'].includes(product.priceType)) {
+      return NextResponse.json(
+        createErrorResponse('INVALID_PRICE_TYPE', '无效的计价方式'),
+        { status: 400 }
+      )
+    }
+
     // Calculate total price
     const price = Number(product.price)
     const totalPrice = product.priceType === 'per_person'

@@ -74,10 +74,9 @@ export async function POST(request: NextRequest) {
     // Extract payment info
     const outTradeNo = params.out_trade_no
     const wechatOrderId = params.transaction_id
-    const totalFee = parseInt(params.total_fee) / 100 // Convert cents to yuan
+    const totalFeeCents = parseInt(params.total_fee) // Keep in cents to avoid precision loss
     const timeEnd = params.time_end // Format: yyyyMMddHHmmss
-    // attach contains order ID for reference but not used in current implementation
-    // const attach = params.attach
+    const attach = params.attach // Contains order ID for verification
 
     if (!outTradeNo || !wechatOrderId) {
       console.error('WeChat callback missing required fields')
@@ -101,11 +100,20 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Verify amount matches
-    const expectedAmount = Number(order.totalPrice)
-    if (Math.abs(totalFee - expectedAmount) > 0.01) {
-      console.error('WeChat callback amount mismatch:', totalFee, expectedAmount)
+    // Verify amount matches (compare in cents to avoid floating point precision issues)
+    const expectedAmountCents = Math.round(Number(order.totalPrice) * 100)
+    if (totalFeeCents !== expectedAmountCents) {
+      console.error('WeChat callback amount mismatch:', totalFeeCents, expectedAmountCents)
       return new NextResponse(generateFailXml('Amount mismatch'), {
+        status: 400,
+        headers: { 'Content-Type': 'application/xml' },
+      })
+    }
+
+    // Verify attach matches order ID
+    if (attach && attach !== order.id) {
+      console.error('WeChat callback attach mismatch:', attach, order.id)
+      return new NextResponse(generateFailXml('Invalid attach'), {
         status: 400,
         headers: { 'Content-Type': 'application/xml' },
       })

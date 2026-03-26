@@ -10,6 +10,27 @@ import {
 } from '@/lib/payment'
 
 /**
+ * Get client IP from request headers
+ * Checks X-Forwarded-For, X-Real-IP, and falls back to connection info
+ */
+function getClientIp(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for')
+  if (forwarded) {
+    // X-Forwarded-For can contain multiple IPs separated by commas
+    // The first one is the original client IP
+    return forwarded.split(',')[0].trim()
+  }
+
+  const realIp = request.headers.get('x-real-ip')
+  if (realIp) {
+    return realIp
+  }
+
+  // Fallback to a default IP (useful for local development)
+  return '127.0.0.1'
+}
+
+/**
  * GET: Query payment status
  */
 export async function GET(request: NextRequest) {
@@ -178,10 +199,10 @@ export async function POST(request: NextRequest) {
       body: order.product.title,
       outTradeNo: order.orderNo,
       totalFee,
-      spbillCreateIp: '127.0.0.1', // In production, get from request
+      spbillCreateIp: getClientIp(request),
       notifyUrl,
       openid,
-      attach: order.id, // Attach order ID for callback reference
+      attach: order.id,
     })
 
     if (wechatResult.returnCode !== 'SUCCESS' || wechatResult.resultCode !== 'SUCCESS') {

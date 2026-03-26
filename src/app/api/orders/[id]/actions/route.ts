@@ -158,8 +158,8 @@ export async function POST(
       }
 
       case 'cancel': {
-        // Only order owner can cancel before payment
-        // Either party can cancel before service starts (CONFIRMED status)
+        // PENDING_PAYMENT: Only order owner can cancel
+        // PENDING_CONFIRM or CONFIRMED: Either party can cancel
         if (order.status === OrderStatus.PENDING_PAYMENT) {
           if (!isOrderOwner) {
             return NextResponse.json(
