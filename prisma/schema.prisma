@@ -1,14 +1,216 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  WATCHER
+  GUIDE
+  ADMIN
+}
+
+enum GuideLevel {
+  BASIC
+  ADVANCED
+  GOLD
+  PREMIUM
+}
+
+enum GuideStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum ServiceType {
+  STANDARD
+  CUSTOM
+}
+
+enum ServiceStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PENDING_CONFIRM
+  CONFIRMED
+  IN_SERVICE
+  PENDING_REVIEW
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum ReviewAuditStatus {
+  PENDING
+  PASSED
+  REJECTED
+}
+
+model User {
+  id            String    @id @default(uuid())
+  phone         String    @unique
+  nickname      String?
+  avatar        String?
+  role          UserRole  @default(WATCHER)
+  password      String?
+  wechatOpenId  String?   @unique @map("wechat_open_id")
+  wechatUnionId String?   @map("wechat_union_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  guideProfile  GuideProfile?
+  orders        Order[]
+  reviewsGiven  Review[]  @relation("ReviewsGiven")
+  reviewsReceived Review[] @relation("ReviewsReceived")
+
+  @@map("users")
+}
+
+model GuideProfile {
+  id              String      @id @default(uuid())
+  userId          String      @unique @map("user_id")
+  type            String      @default("individual")
+  level           GuideLevel  @default(BASIC)
+  status          GuideStatus @default(PENDING)
+  realName        String      @map("real_name")
+  idCard          String?     @map("id_card")
+  bio             String?
+  regions         String[]
+  languages       String[]    @default(["中文"])
+  commissionRate  Decimal     @default(0.15) @map("commission_rate")
+
+  contactPhone    String      @map("contact_phone")
+  contactWechat   String?     @map("contact_wechat")
+  contactEmail    String?     @map("contact_email")
+
+  certificates    String[]
+
+  totalOrders     Int         @default(0) @map("total_orders")
+  completedOrders Int         @default(0) @map("completed_orders")
+  rating          Decimal     @default(5.0) @db.Decimal(2, 1)
+  reviewCount     Int         @default(0) @map("review_count")
+
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  services        ServiceProduct[]
+  orders          Order[]
+
+  @@map("guide_profiles")
+}
+
+model ServiceProduct {
+  id            String        @id @default(uuid())
+  guideId       String        @map("guide_id")
+  type          ServiceType   @default(STANDARD)
+  title         String
+  description   String
+  region        String
+  duration      Int
+  maxPeople     Int           @map("max_people")
+  price         Decimal       @db.Decimal(10, 2)
+  priceType     String        @default("per_person") @map("price_type")
+
+  includes      String[]
+  excludes      String[]
+  birdSpecies   String[]      @map("bird_species")
+  bestSeason    String[]      @map("best_season")
+
+  images        String[]
+
+  status        ServiceStatus @default(DRAFT)
+
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  guide         GuideProfile  @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  orders        Order[]
+
+  @@map("service_products")
+}
+
+model Order {
+  id            String      @id @default(uuid())
+  orderNo       String      @unique @map("order_no")
+
+  userId        String      @map("user_id")
+  guideId       String      @map("guide_id")
+  productId     String      @map("product_id")
+
+  type          ServiceType
+  serviceDate   DateTime    @map("service_date")
+  peopleCount   Int         @map("people_count")
+  totalPrice    Decimal     @db.Decimal(10, 2) @map("total_price")
+  status        OrderStatus @default(PENDING_PAYMENT)
+
+  userRemark    String?     @map("user_remark")
+  guideRemark   String?     @map("guide_remark")
+
+  paidAt        DateTime?   @map("paid_at")
+  confirmedAt   DateTime?   @map("confirmed_at")
+  completedAt   DateTime?   @map("completed_at")
+  cancelledAt   DateTime?   @map("cancelled_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  user          User        @relation(fields: [userId], references: [id])
+  guide         GuideProfile @relation(fields: [guideId], references: [id])
+  product       ServiceProduct @relation(fields: [productId], references: [id])
+  payment       Payment?
+  reviews       Review[]
+
+  @@map("orders")
+}
+
+model Payment {
+  id            String    @id @default(uuid())
+  orderId       String    @unique @map("order_id")
+
+  wechatOrderId String?   @map("wechat_order_id")
+  prepayId      String?   @map("prepay_id")
+
+  amount        Decimal   @db.Decimal(10, 2)
+  status        String
+
+  paidAt        DateTime? @map("paid_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model Review {
+  id            String            @id @default(uuid())
+  orderId       String            @map("order_id")
+  reviewerId    String            @map("reviewer_id")
+  revieweeId    String            @map("reviewee_id")
+
+  rating        Int
+  content       String
+  tags          String[]
+  images        String[]
+  reply         String?
+  repliedAt     DateTime?         @map("replied_at")
+
+  auditStatus   ReviewAuditStatus @default(PENDING) @map("audit_status")
+  auditRemark   String?           @map("audit_remark")
+
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  order         Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  reviewer      User              @relation("ReviewsGiven", fields: [reviewerId], references: [id])
+  reviewee      User              @relation("ReviewsReceived", fields: [revieweeId], references: [id])
+
+  @@map("reviews")
 }

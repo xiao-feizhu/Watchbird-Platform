@@ -8,13 +8,18 @@
     "start": "next start",
     "lint": "next lint"
   },
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
+  },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
     "axios": "^1.13.6",
     "bcryptjs": "^3.0.3",
     "jsonwebtoken": "^9.0.3",
     "next": "14.2.35",
     "next-auth": "^4.24.13",
+    "pg": "^8.20.0",
     "react": "^18",
     "react-dom": "^18",
     "zod": "^4.3.6"
