@@ -1,25 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { verifyToken } from '@/lib/auth'
+import { verifyAuth } from '@/lib/auth'
 import { createSuccessResponse, createErrorResponse } from '@/lib/api-response'
 import { GuideStatus } from '@prisma/client'
-
-/**
- * Verify JWT token and return payload
- */
-async function verifyAuth(request: NextRequest) {
-  const authHeader = request.headers.get('Authorization')
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null
-  }
-
-  const token = authHeader.substring(7)
-  try {
-    return verifyToken(token)
-  } catch {
-    return null
-  }
-}
 
 /**
  * GET: Fetch service products list

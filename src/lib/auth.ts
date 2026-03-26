@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
+import { NextRequest } from 'next/server'
 
 const JWT_SECRET = process.env.NEXTAUTH_SECRET!
 const JWT_EXPIRES_IN = '7d'
@@ -56,4 +57,22 @@ export function generateVerifyCode(): string {
 export function isValidPhone(phone: string): boolean {
   const phoneRegex = /^1[3-9]\d{9}$/
   return phoneRegex.test(phone)
+}
+
+/**
+ * Verify JWT token from request headers
+ * Returns null if authentication fails
+ */
+export function verifyAuth(request: NextRequest): JWTPayload | null {
+  const authHeader = request.headers.get('Authorization')
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null
+  }
+
+  const token = authHeader.substring(7)
+  try {
+    return verifyToken(token)
+  } catch {
+    return null
+  }
 }
