@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: watchbird-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - WECHAT_APP_ID=${WECHAT_APP_ID}
+      - WECHAT_APP_SECRET=${WECHAT_APP_SECRET}
+      - WECHAT_MCH_ID=${WECHAT_MCH_ID}
+      - WECHAT_API_KEY=${WECHAT_API_KEY}
+      - REDIS_URL=${REDIS_URL}
+      - COS_SECRET_ID=${COS_SECRET_ID}
+      - COS_SECRET_KEY=${COS_SECRET_KEY}
+      - COS_BUCKET=${COS_BUCKET}
+      - COS_REGION=${COS_REGION}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - watchbird-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  db:
+    image: postgres:16-alpine
+    container_name: watchbird-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
+      - POSTGRES_DB=${DB_NAME:-watchbird}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - watchbird-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-watchbird}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  watchbird-network:
+    driver: bridge
