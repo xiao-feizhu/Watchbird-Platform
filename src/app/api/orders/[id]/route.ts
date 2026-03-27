@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyAuth } from '@/lib/auth'
 import { createSuccessResponse, createErrorResponse } from '@/lib/api-response'
-import { OrderStatus } from '@prisma/client'
 
 /**
  * GET: Fetch order details with product and guide info
