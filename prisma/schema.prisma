@@ -274,7 +274,7 @@ enum NotificationType {
 }
 
 model UserProfile {
-  id            String   @id @default(cuid())
+  id            String   @id @default(uuid())
   userId        String   @unique @map("user_id")
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -363,6 +363,7 @@ model ChatGroup {
   disabledAt     DateTime?       @map("disabled_at")
   disabledReason String?         @map("disabled_reason")
   createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
 
   messages       ChatMessage[]
 
