@@ -15,8 +15,11 @@ FROM node:20-alpine AS builder
 RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
+# Copy package files and install ALL dependencies (including dev)
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# Copy source code
 COPY . .
 
 # Generate Prisma Client
