@@ -28,7 +28,8 @@ RUN npx prisma generate
 # Build the application
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-RUN npm run build
+# Create empty public dir if not exists
+RUN mkdir -p public && npm run build
 
 # Stage 3: Runner
 FROM node:20-alpine AS runner
