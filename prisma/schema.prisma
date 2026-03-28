@@ -71,6 +71,14 @@ model User {
   reviewsGiven  Review[]  @relation("ReviewsGiven")
   reviewsReceived Review[] @relation("ReviewsReceived")
 
+  // 新增关联（鸟友组队功能）
+  userProfile        UserProfile?
+  tripParticipants   TripParticipant[]
+  chatMessages       ChatMessage[]
+  tripsOrganized     Trip[] @relation("TripsOrganized")
+  follows            Follow[] @relation("UserFollows")
+  followers          Follow[] @relation("UserFollowers")
+
   @@map("users")
 }
 
@@ -213,4 +221,190 @@ model Review {
   reviewee      User              @relation("ReviewsReceived", fields: [revieweeId], references: [id])
 
   @@map("reviews")
+}
+
+// ==================== 鸟友组队功能新增模型 ====================
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum FeeType {
+  FREE
+  AA
+  FIXED
+}
+
+enum TripStatus {
+  OPEN       // 招募中
+  FULL       // 已满员
+  CLOSED     // 已截止
+  COMPLETED  // 已完成
+  CANCELLED  // 已取消
+}
+
+enum ParticipantStatus {
+  PENDING   // 申请中
+  APPROVED  // 已通过
+  REJECTED  // 已拒绝
+  CANCELLED // 已取消
+}
+
+enum ChatGroupStatus {
+  ACTIVE    // 正常
+  DISABLED  // 已禁言
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  LOCATION
+}
+
+enum NotificationType {
+  TRIP_APPLICATION
+  TRIP_APPROVED
+  TRIP_REJECTED
+  TRIP_CANCELLED
+  NEW_MEMBER
+  NEW_MESSAGE
+  TRIP_REMINDER
+}
+
+model UserProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique @map("user_id")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  age           Int?
+  gender        Gender?
+  region        String?
+  bio           String?  @db.Text
+
+  birdingYears  Int      @default(0) @map("birding_years")
+  expertBirds   String[] @map("expert_birds")
+  equipment     String?
+
+  canDrive      Boolean  @default(false) @map("can_drive")
+  carCapacity   Int      @default(0) @map("car_capacity")
+
+  hostedTrips   Int      @default(0) @map("hosted_trips")
+  joinedTrips   Int      @default(0) @map("joined_trips")
+  followers     Int      @default(0)
+  following     Int      @default(0)
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("user_profiles")
+}
+
+model Trip {
+  id              String     @id @default(uuid())
+  organizerId     String     @map("organizer_id")
+  organizer       User       @relation("TripsOrganized", fields: [organizerId], references: [id], onDelete: Cascade)
+
+  title           String
+  destination     String
+  destinationLat  Float?     @map("destination_lat")
+  destinationLng  Float?     @map("destination_lng")
+  startDate       DateTime   @map("start_date")
+  endDate         DateTime?  @map("end_date")
+  maxParticipants Int        @map("max_participants")
+  currentCount    Int        @default(1) @map("current_count")
+
+  requirements    String?    @db.Text
+
+  feeType         FeeType    @default(AA) @map("fee_type")
+  feeAmount       Decimal?   @db.Decimal(10, 2) @map("fee_amount")
+  feeDescription  String?    @map("fee_description")
+
+  description     String     @db.Text
+  status          TripStatus @default(OPEN)
+
+  participants    TripParticipant[]
+  chatGroup       ChatGroup?
+
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  @@index([status, startDate])
+  @@index([destination])
+  @@index([organizerId])
+  @@map("trips")
+}
+
+model TripParticipant {
+  id            String             @id @default(uuid())
+  tripId        String             @map("trip_id")
+  trip          Trip               @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  userId        String             @map("user_id")
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status        ParticipantStatus  @default(PENDING)
+
+  bio           String?            @db.Text
+
+  appliedAt     DateTime           @default(now()) @map("applied_at")
+  respondedAt   DateTime?          @map("responded_at")
+
+  @@unique([tripId, userId])
+  @@index([userId, status])
+  @@map("trip_participants")
+}
+
+model ChatGroup {
+  id             String          @id @default(uuid())
+  tripId         String          @unique @map("trip_id")
+  trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  name           String
+  status         ChatGroupStatus @default(ACTIVE)
+  disabledAt     DateTime?       @map("disabled_at")
+  disabledReason String?         @map("disabled_reason")
+  createdAt      DateTime        @default(now()) @map("created_at")
+
+  messages       ChatMessage[]
+
+  @@map("chat_groups")
+}
+
+model ChatMessage {
+  id          String      @id @default(uuid())
+  groupId     String      @map("group_id")
+  group       ChatGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  senderId    String      @map("sender_id")
+  sender      User        @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  content     String      @db.Text
+  messageType MessageType @default(TEXT) @map("message_type")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  @@index([groupId, createdAt])
+  @@map("chat_messages")
+}
+
+model Follow {
+  id          String    @id @default(uuid())
+  followerId  String    @map("follower_id")
+  follower    User      @relation("UserFollows", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String    @map("following_id")
+  following   User      @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@unique([followerId, followingId])
+  @@map("follows")
+}
+
+model Notification {
+  id          String           @id @default(uuid())
+  userId      String           @map("user_id")
+  type        NotificationType
+  title       String
+  content     String?
+  data        Json?
+  isRead      Boolean          @default(false) @map("is_read")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  @@index([userId, isRead])
+  @@map("notifications")
 }
