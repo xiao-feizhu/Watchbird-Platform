@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { verifyAuth } from '@/lib/auth'
 import { createSuccessResponse, createErrorResponse } from '@/lib/api-response'
 import { updateTripSchema } from '@/lib/validations/trip'
-import { TripStatus } from '@prisma/client'
+import { TripStatus, FeeType } from '@prisma/client'
 
 /**
  * GET: Get trip detail
