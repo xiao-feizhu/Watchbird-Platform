@@ -10,7 +10,8 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import { useApi } from '@/hooks/useApi'
-import type { Trip } from '../types'
+import { useAuth } from '@/hooks/useAuth'
+import type { Trip, TripApplication } from '../types'
 import { STATUS_LABELS, STATUS_VARIANTS, FEE_TYPE_LABELS } from '../types'
 
 interface TripDetailResponse {
@@ -20,6 +21,10 @@ interface TripDetailResponse {
 interface ApplicationResponse {
   success: boolean
   message?: string
+}
+
+interface MyApplicationsResponse {
+  applications: TripApplication[]
 }
 
 function formatDate(dateStr: string): string {
@@ -39,19 +44,30 @@ function formatDateRange(startDate: string, endDate: string | null): string {
   return `${start} 至 ${end}`
 }
 
+// Escape HTML to prevent XSS
+function escapeHtml(text: string): string {
+  const div = document.createElement('div')
+  div.textContent = text
+  return div.innerHTML
+}
+
 export default function TripDetailPage() {
   const params = useParams()
   const router = useRouter()
+  const { user, isAuthenticated } = useAuth()
   const tripId = params.id as string
 
   const { data, isLoading, error, execute: fetchTrip } = useApi<TripDetailResponse>()
   const { isLoading: isApplying, execute: applyTrip } = useApi<ApplicationResponse>()
   const { isLoading: isCancelling, execute: cancelTrip } = useApi<ApplicationResponse>()
   const { isLoading: isCompleting, execute: completeTrip } = useApi<ApplicationResponse>()
+  const { isLoading: isCancellingTrip, execute: cancelTripAction } = useApi<ApplicationResponse>()
+  const { data: applicationsData, execute: fetchApplications } = useApi<MyApplicationsResponse>()
 
   const [showApplyModal, setShowApplyModal] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [showCompleteModal, setShowCompleteModal] = useState(false)
+  const [showCancelTripModal, setShowCancelTripModal] = useState(false)
   const [applicationBio, setApplicationBio] = useState('')
 
   const trip = data?.trip
@@ -63,6 +79,24 @@ export default function TripDetailPage() {
     }
   }, [tripId, fetchTrip])
 
+  // Fetch user's applications to check if they've applied
+  useEffect(() => {
+    if (isAuthenticated && tripId) {
+      fetchApplications('/api/trips/my-applications')
+    }
+  }, [isAuthenticated, tripId, fetchApplications])
+
+  // Find current user's application for this trip
+  const userApplication = applicationsData?.applications.find(
+    (app) => app.trip.id === tripId
+  )
+
+  // Determine user states
+  const isOrganizer = trip?.organizer.id === user?.id
+  const hasApplied = !!userApplication
+  const isApproved = userApplication?.status === 'APPROVED'
+  const isOpen = trip?.status === 'OPEN'
+
   // Handle apply
   const handleApply = useCallback(async () => {
     const result = await applyTrip(`/api/trips/${tripId}/apply`, {
@@ -72,9 +106,11 @@ export default function TripDetailPage() {
 
     if (result?.success) {
       setShowApplyModal(false)
+      setApplicationBio('')
       fetchTrip(`/api/trips/${tripId}`)
+      fetchApplications('/api/trips/my-applications')
     }
-  }, [tripId, applicationBio, applyTrip, fetchTrip])
+  }, [tripId, applicationBio, applyTrip, fetchTrip, fetchApplications])
 
   // Handle cancel application
   const handleCancelApplication = useCallback(async () => {
@@ -85,8 +121,9 @@ export default function TripDetailPage() {
     if (result?.success) {
       setShowCancelModal(false)
       fetchTrip(`/api/trips/${tripId}`)
+      fetchApplications('/api/trips/my-applications')
     }
-  }, [tripId, cancelTrip, fetchTrip])
+  }, [tripId, cancelTrip, fetchTrip, fetchApplications])
 
   // Handle complete trip
   const handleComplete = useCallback(async () => {
@@ -99,6 +136,18 @@ export default function TripDetailPage() {
       fetchTrip(`/api/trips/${tripId}`)
     }
   }, [tripId, completeTrip, fetchTrip])
+
+  // Handle cancel trip (organizer only)
+  const handleCancelTrip = useCallback(async () => {
+    const result = await cancelTripAction(`/api/trips/${tripId}/cancel`, {
+      method: 'POST',
+    })
+
+    if (result?.success) {
+      setShowCancelTripModal(false)
+      fetchTrip(`/api/trips/${tripId}`)
+    }
+  }, [tripId, cancelTripAction, fetchTrip])
 
   // Loading state
   if (isLoading) {
@@ -148,11 +197,6 @@ export default function TripDetailPage() {
     )
   }
 
-  const isOpen = trip.status === 'OPEN'
-  const isOrganizer = false // TODO: Check if current user is organizer
-  const hasApplied = false // TODO: Check if current user has applied
-  const isApproved = false // TODO: Check if current user is approved
-
   return (
     <MainLayout>
       <div className="max-w-4xl mx-auto">
@@ -160,6 +204,7 @@ export default function TripDetailPage() {
         <button
           onClick={() => router.back()}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
+          aria-label="返回列表"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -292,7 +337,10 @@ export default function TripDetailPage() {
             <Card className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">活动详情</h2>
               <div className="prose prose-emerald max-w-none">
-                <p className="whitespace-pre-wrap text-gray-700">{trip.description}</p>
+                <p
+                  className="whitespace-pre-wrap text-gray-700"
+                  dangerouslySetInnerHTML={{ __html: escapeHtml(trip.description) }}
+                />
               </div>
             </Card>
 
@@ -300,7 +348,10 @@ export default function TripDetailPage() {
             {trip.requirements && (
               <Card className="p-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">参加要求</h2>
-                <p className="whitespace-pre-wrap text-gray-700">{trip.requirements}</p>
+                <p
+                  className="whitespace-pre-wrap text-gray-700"
+                  dangerouslySetInnerHTML={{ __html: escapeHtml(trip.requirements) }}
+                />
               </Card>
             )}
 
@@ -414,42 +465,56 @@ export default function TripDetailPage() {
                     </Button>
                   )}
                   {trip.status !== 'CANCELLED' && trip.status !== 'COMPLETED' && (
-                    <Button variant="danger" className="w-full">
+                    <Button
+                      variant="danger"
+                      className="w-full"
+                      onClick={() => setShowCancelTripModal(true)}
+                    >
                       取消活动
                     </Button>
                   )}
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {isOpen && !hasApplied && (
-                    <Button
-                      variant="primary"
-                      className="w-full"
-                      onClick={() => setShowApplyModal(true)}
-                    >
-                      申请参加
-                    </Button>
-                  )}
-                  {hasApplied && !isApproved && (
-                    <Button
-                      variant="ghost"
-                      className="w-full"
-                      onClick={() => setShowCancelModal(true)}
-                    >
-                      取消申请
-                    </Button>
-                  )}
-                  {isApproved && trip.chatGroupId && (
-                    <Link href={`/trips/${trip.id}/chat`} className="block">
+                  {!isAuthenticated ? (
+                    <Link href="/login" className="block">
                       <Button variant="primary" className="w-full">
-                        进入群聊
+                        登录后申请
                       </Button>
                     </Link>
-                  )}
-                  {!isOpen && !hasApplied && (
-                    <Button variant="ghost" className="w-full" disabled>
-                      {STATUS_LABELS[trip.status]}
-                    </Button>
+                  ) : (
+                    <>
+                      {isOpen && !hasApplied && (
+                        <Button
+                          variant="primary"
+                          className="w-full"
+                          onClick={() => setShowApplyModal(true)}
+                        >
+                          申请参加
+                        </Button>
+                      )}
+                      {hasApplied && !isApproved && (
+                        <Button
+                          variant="ghost"
+                          className="w-full"
+                          onClick={() => setShowCancelModal(true)}
+                        >
+                          取消申请
+                        </Button>
+                      )}
+                      {isApproved && trip.chatGroupId && (
+                        <Link href={`/trips/${trip.id}/chat`} className="block">
+                          <Button variant="primary" className="w-full">
+                            进入群聊
+                          </Button>
+                        </Link>
+                      )}
+                      {!isOpen && !hasApplied && (
+                        <Button variant="ghost" className="w-full" disabled>
+                          {STATUS_LABELS[trip.status]}
+                        </Button>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -488,7 +553,7 @@ export default function TripDetailPage() {
           </div>
         </Modal>
 
-        {/* Cancel Modal */}
+        {/* Cancel Application Modal */}
         <Modal
           isOpen={showCancelModal}
           onClose={() => setShowCancelModal(false)}
@@ -512,7 +577,7 @@ export default function TripDetailPage() {
           </div>
         </Modal>
 
-        {/* Complete Modal */}
+        {/* Complete Trip Modal */}
         <Modal
           isOpen={showCompleteModal}
           onClose={() => setShowCompleteModal(false)}
@@ -531,6 +596,30 @@ export default function TripDetailPage() {
                 disabled={isCompleting}
               >
                 确认完成
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Cancel Trip Modal */}
+        <Modal
+          isOpen={showCancelTripModal}
+          onClose={() => setShowCancelTripModal(false)}
+          title="取消活动"
+        >
+          <div className="space-y-4">
+            <p className="text-gray-600">确定要取消此活动吗？此操作不可撤销，所有参与者将收到通知。</p>
+            <div className="flex gap-3 justify-end">
+              <Button variant="ghost" onClick={() => setShowCancelTripModal(false)}>
+                再想想
+              </Button>
+              <Button
+                variant="danger"
+                onClick={handleCancelTrip}
+                loading={isCancellingTrip}
+                disabled={isCancellingTrip}
+              >
+                确认取消
               </Button>
             </div>
           </div>
